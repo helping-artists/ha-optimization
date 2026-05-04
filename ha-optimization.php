@@ -167,3 +167,76 @@ class HA_Optimization {
 }
 
 add_action('plugins_loaded', [HA_Optimization::class, 'init']);
+
+/**
+ * Actualitzador automàtic des de GitHub
+ */
+class HA_Updater {
+
+    const GITHUB_USER = 'helping-artists';
+    const GITHUB_REPO = 'ha-optimization';
+    const PLUGIN_FILE = 'ha-optimization/ha-optimization.php';
+
+    public static function init(): void {
+        add_filter('pre_set_site_transient_update_plugins', [__CLASS__, 'check_update']);
+        add_filter('plugins_api', [__CLASS__, 'plugin_info'], 10, 3);
+    }
+
+    public static function check_update($transient) {
+        if (empty($transient->checked)) return $transient;
+
+        $remote = self::get_remote_data();
+        if (!$remote) return $transient;
+
+        $remote_version = ltrim($remote->tag_name, 'v');
+        $local_version  = $transient->checked[self::PLUGIN_FILE] ?? '0';
+
+        if (version_compare($remote_version, $local_version, '>')) {
+            $transient->response[self::PLUGIN_FILE] = (object) [
+                'slug'        => 'ha-optimization',
+                'plugin'      => self::PLUGIN_FILE,
+                'new_version' => $remote_version,
+                'url'         => 'https://github.com/' . self::GITHUB_USER . '/' . self::GITHUB_REPO,
+                'package'     => 'https://github.com/' . self::GITHUB_USER . '/' . self::GITHUB_REPO . '/archive/refs/heads/main.zip',
+            ];
+        }
+
+        return $transient;
+    }
+
+    public static function plugin_info($result, $action, $args) {
+        if ($action !== 'plugin_information') return $result;
+        if ($args->slug !== 'ha-optimization') return $result;
+
+        $remote = self::get_remote_data();
+        if (!$remote) return $result;
+
+        return (object) [
+            'name'          => '» Helping Artists » Optimization',
+            'slug'          => 'ha-optimization',
+            'version'       => ltrim($remote->tag_name, 'v'),
+            'author'        => 'dídac gilabert',
+            'homepage'      => 'https://github.com/' . self::GITHUB_USER . '/' . self::GITHUB_REPO,
+            'download_link' => 'https://github.com/' . self::GITHUB_USER . '/' . self::GITHUB_REPO . '/archive/refs/heads/main.zip',
+            'sections'      => [
+                'description' => 'Seguretat i rendiment per WordPress amb opcions activables.',
+            ],
+        ];
+    }
+
+    private static function get_remote_data() {
+        $url      = 'https://api.github.com/repos/' . self::GITHUB_USER . '/' . self::GITHUB_REPO . '/releases/latest';
+        $response = wp_remote_get($url, [
+            'headers' => ['User-Agent' => 'WordPress/' . get_bloginfo('version')],
+            'timeout' => 10,
+        ]);
+
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            return null;
+        }
+
+        return json_decode(wp_remote_retrieve_body($response));
+    }
+}
+
+add_action('plugins_loaded', [HA_Updater::class, 'init']);
