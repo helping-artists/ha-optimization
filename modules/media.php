@@ -88,7 +88,7 @@ class HA_Media {
                 'size'         => $size,
                 'url'          => wp_get_attachment_url($row->ID),
                 'edit_url'     => get_edit_post_link($row->ID),
-                'file_path'    => $file ?: '',
+                'file_path'    => $file ? str_replace(wp_upload_dir()['basedir'], 'uploads', $file) : '',
                 'parent_title' => $parent_title,
                 'parent_url'   => $parent_url,
             ];
